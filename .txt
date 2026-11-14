@@ -1,0 +1,2 @@
+            ./features/spa_feat_p14t/train
+            features/mo_feat_p14t/train

@@ -51,6 +51,134 @@ def build_vision_projector(mm_projector_type='linear', mm_hidden_size=512, hidde
     raise ValueError(f'Unknown projector type: {mm_projector_type}')
 
 
+
+class SinusoidalPositionalEncoding(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+
+        self.d_model = d_model
+
+    def forward(self, x):
+        B, T, D = x.shape
+
+        position = torch.arange(
+            T, device=x.device
+        ).unsqueeze(1)
+
+        div_term = torch.exp(
+            torch.arange(
+                0, D, 2,
+                device=x.device,
+                dtype=torch.float32
+            ) * (-math.log(10000.0) / D)
+        )
+
+        pe = torch.zeros(
+            T, D,
+            device=x.device,
+            dtype=torch.float32
+        )
+
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        return x + pe.unsqueeze(0).to(dtype=x.dtype)
+
+
+class LandmarkTransformerProjector(nn.Module):
+    def __init__(
+        self,
+        mm_hidden_size=26160,
+        hidden_size=768,
+        embed_dim=1024,
+        num_heads=4,
+        num_layers=2,
+        dropout=0.1
+    ):
+        super().__init__()
+
+        # Cada landmark possui 3 coordenadas (x, y, z)
+        self.num_landmarks = mm_hidden_size // 3
+
+        self.input_proj = nn.Linear(mm_hidden_size, embed_dim)
+
+        self.pos_embedding = SinusoidalPositionalEncoding(embed_dim)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim,
+            nhead=num_heads,
+            dim_feedforward=embed_dim * 4,
+            dropout=dropout,
+            batch_first=True,
+            activation='gelu',
+            norm_first=True
+        )
+
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers
+        )
+
+        self.input_norm = nn.LayerNorm(mm_hidden_size) 
+        self.norm = nn.LayerNorm(embed_dim)
+
+        self.projector = nn.Sequential(
+            nn.Linear(embed_dim, hidden_size),
+            # nn.BatchNorm1d(hidden_size),
+            nn.GELU(),
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x, mask=None):
+        # x: [B, 26160]
+        # B = x.shape[0]
+
+        # [B, 8720, 3]
+        # x = x.view(B, self.num_landmarks, 3)
+
+        # B, T, _ = x.shape
+        # x = x.view(B, T, self.num_landmarks, 3)
+
+        # [B, 8720, 256]
+        x = self.input_norm(x)
+        x = self.input_proj(x)
+
+        x = self.pos_embedding(x)
+
+        key_padding_mask = None
+        if mask is not None:
+            key_padding_mask = ~mask  
+
+        # Transformer
+        x = self.transformer(x, src_key_padding_mask=key_padding_mask)
+
+
+        if mask is not None:
+            x = x.masked_fill(~mask.unsqueeze(-1), 0.0)
+
+        # [B, 256]
+        x = self.norm(x) #.mean(dim=1)
+
+        # [B, 768]
+        x = self.projector(x)
+
+        return x
+
+
+def build_landmarks_projector(
+    mm_hidden_size=26160,
+    hidden_size=768
+):
+    return LandmarkTransformerProjector(
+        mm_hidden_size=mm_hidden_size,
+        hidden_size=hidden_size
+    )
+
+
+
+    
+
+
 # https://github1s.com/facebookresearch/jepa/blob/main/src/models/utils/modules.py
 class CrossAttention(nn.Module):
     def __init__(

@@ -1,0 +1,7 @@
+name: spamo_env
+channels:
+  - defaults
+dependencies:
+  - pip
+  - python=3.10
+prefix: /home/lovelace/proj/proj1166/murilobs/miniconda3/envs/spamo_env

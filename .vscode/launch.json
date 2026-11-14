@@ -31,6 +31,109 @@
                 "--device", 
                 "cpu"
             ]
+        },
+        {
+
+            "name": "train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "env": {
+                "WANDB_MODE":"offline",
+                "CUDA_LAUNCH_BLOCKING": "1" 
+            },
+            "args": [
+                "-c",
+                "configs/finetune.yaml",
+                "-e",
+                "bleu"
+            ]
+        },  
+
+        {
+            "name": "mediapipe",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/mediapipe_extract_feature.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--anno_root",
+                "./preprocess/Phoenix14T",
+                "--video_root",
+                "./phoenix_dl/Phoenix14T/PHOENIX-2014-T-release-v3/PHOENIX-2014-T/",
+                "--save_dir",
+                "./datasets_features",
+                "--cache_dir",
+                "./models",
+                "--model_type",
+                "auto",
+                "--num_workers",
+                "1",
+                "--window_size",
+                "16",
+                "--overlap_size",
+                "8",
+                "--mode",
+                "dev",
+                "test",
+                "train"
+            ]
+
+        },
+
+        {
+            "name": "vjepa2_64fpc",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/vjepa2_extract_feature.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--anno_root",
+                "./preprocess/Phoenix14T",
+                "--video_root",
+                "./phoenix_dl/PHOENIX-2014-T-release-v3/PHOENIX-2014-T/",
+                "--save_dir",
+                "./datasets_features",
+                "--model_name",
+                "facebook/vjepa2-vitl-fpc64-256",
+                "--cache_dir",
+                "./cache/",
+                "--overlap_size",
+                "48",
+                "--batch_size",
+                "4",
+                "--device",
+                "cpu"
+            ]
+        },
+
+        {
+            "name": "vjepa2_16fpc",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/vjepa2_extract_feature.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--anno_root",
+                "./preprocess/Phoenix14T",
+                "--video_root",
+                "./phoenix_dl/PHOENIX-2014-T-release-v3/PHOENIX-2014-T/",
+                "--save_dir",
+                "./datasets_features",
+                "--model_name",
+                "facebook/vjepa2-vitl-fpc16-256-ssv2",
+                "--cache_dir",
+                "./cache/",
+                "--overlap_size",
+                "8",
+                "--batch_size",
+                "4",
+                "--device",
+                "cpu",
+                "--frames_per_clip",
+                "16"
+            ]
         }
     ]
 }

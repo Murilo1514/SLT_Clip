@@ -14,7 +14,7 @@ from peft import LoraConfig, get_peft_model, TaskType
 
 from spamo.tconv import TemporalConv
 from utils.helpers import create_mask, derangement
-from spamo.mm_projector import build_vision_projector
+from spamo.mm_projector import build_vision_projector, build_landmarks_projector
 from utils.evaluate import evaluate_results
 from spamo.clip_loss import clip_loss
 from spamo.asb import AbstractSLT
@@ -54,6 +54,7 @@ class FlanT5SLT(AbstractSLT):
         lora_r: int = 16,
         lora_alpha: int = 32,
         lora_dropout: float = 0.1,
+        mediapipe_feat: bool = False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -80,7 +81,7 @@ class FlanT5SLT(AbstractSLT):
         self.lora_r = lora_r
         self.lora_alpha = lora_alpha
         self.lora_dropout = lora_dropout
-        
+        self.mediapipe_feat = mediapipe_feat
         self.prepare_models(model_name)
 
         # Apply the selected tuning strategy
@@ -162,7 +163,11 @@ class FlanT5SLT(AbstractSLT):
 
         # Load the vision projectors
         self.spatio_proj = build_vision_projector('linear', self.input_size, self.inter_hidden)
-        self.spatiotemp_proj = build_vision_projector('linear', 1024, self.inter_hidden)
+        if self.mediapipe_feat:
+            # self.spatiotemp_proj = build_vision_projector('linear', 26160, self.inter_hidden)
+            self.spatiotemp_proj = build_landmarks_projector(26160, self.inter_hidden) 
+        else:
+            self.spatiotemp_proj = build_vision_projector('linear', 1024, self.inter_hidden)
         self.fusion_proj = build_vision_projector('mlp2x_gelu', self.inter_hidden, self.t5_model.config.hidden_size)
         
         # Load the temporal encoder
@@ -269,8 +274,13 @@ class FlanT5SLT(AbstractSLT):
         # Process spatiotemporal features if needed
         if spatiotemporal:
             spatiotemporal_outputs = pad_sequence(samples['glor_values'], batch_first=True)
-            spatiotemporal_outputs = self.spatiotemp_proj(spatiotemporal_outputs)
             spatiotemporal_mask = create_mask(seq_lengths=samples['glor_lengths'], device=self.device)
+
+            try:
+                spatiotemporal_outputs = self.spatiotemp_proj(spatiotemporal_outputs, mask=spatiotemporal_mask)
+            except TypeError:
+                spatiotemporal_outputs = self.spatiotemp_proj(spatiotemporal_outputs)
+            
         
         # Combine features for joint mode
         if self.fusion_mode == 'joint':
@@ -335,11 +345,13 @@ class FlanT5SLT(AbstractSLT):
         max_frame_len = self.max_frame_len
 
         for sample in batch:
-            if sample['pixel_value'].shape[0] != 0:
-                # Calculate number of frames after sampling
-                nframe = math.ceil(sample['num_frames'] / self.frame_sample_rate)
-                pval = sample['pixel_value'][::self.frame_sample_rate]
+            has_pixel = sample.get('pixel_value') is not None and sample['pixel_value'].shape[0] != 0
+            has_glor = sample.get('glor_value') is not None and (
+                (isinstance(sample['glor_value'], list) and len(sample['glor_value']) > 0) or
+                (isinstance(sample['glor_value'], torch.Tensor) and sample['glor_value'].shape[0] != 0)
+            )
 
+            if has_pixel or has_glor:
                 # Collect metadata
                 ids.append(sample['id'])
                 texts.append(sample['text'].lower())
@@ -353,19 +365,22 @@ class FlanT5SLT(AbstractSLT):
                 ]
                 _ex_lang_trans = _ex_lang_trans[:self.num_in_context]
                 ex_lang_translations.append(' '.join(_ex_lang_trans))
-                
-                # Handle too long sequences with random cropping
-                if nframe > max_frame_len:
-                    nframe = max_frame_len
-                    start_index = random.randint(0, pval.size(0) - max_frame_len)
-                    pval = pval[start_index:start_index + max_frame_len]
-                
-                # Store processed visual features
-                num_frames.append(nframe)
-                pixel_values.append(pval)
+
+                # Process pixel values if available
+                if has_pixel:
+                    nframe = math.ceil(sample['num_frames'] / self.frame_sample_rate)
+                    pval = sample['pixel_value'][::self.frame_sample_rate]
+                    if nframe > max_frame_len:
+                        nframe = max_frame_len
+                        start_index = random.randint(0, pval.size(0) - max_frame_len)
+                        pval = pval[start_index:start_index + max_frame_len]
+                    num_frames.append(nframe)
+                    pixel_values.append(pval)
+                else:
+                    num_frames.append(0)
                 
                 # Process glor values if available
-                if sample['glor_value'] is not None:
+                if has_glor:
                     if isinstance(sample['glor_value'], list):
                         glor_values.append(torch.cat(sample['glor_value'], dim=0))
                         glor_lengths.append(sum(len(g) for g in sample['glor_value']))
@@ -643,3 +658,7 @@ class FlanT5SLT(AbstractSLT):
                 "frequency": 1,
             },
         }
+    
+
+
+

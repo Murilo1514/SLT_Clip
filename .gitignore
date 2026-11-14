@@ -6,6 +6,8 @@ jspm_packages/
 .notebooks/
 phoenix_dl/
 cache/ 
+datasets_features/
+features/
 
 # Build outputs
 dist/

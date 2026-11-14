@@ -6,7 +6,8 @@ import glob
 
 
 def derangement(lst):
-    assert len(lst) > 1, "List must have at least two elements."
+    if len(lst) <= 1:
+        return lst[:]
     
     while True:
         shuffled = lst[:]
@@ -71,7 +72,8 @@ def create_mask(seq_lengths: list, device="cpu"):
 def get_img_list(ds_name, vid_root, path):
     # Handling for different datasets
     if ds_name == 'Phoenix14T':
-        img_path = os.path.join(vid_root, 'features', 'fullFrame-256x256px', path)
+        # img_path = os.path.join(vid_root, 'features', 'fullFrame-256x256px', path)
+        img_path = os.path.join(vid_root, 'features', 'fullFrame-210x260px', path)
     elif ds_name == 'CSL-Daily':
         img_path = os.path.join(vid_root, 'CSL-Daily_256x256px', path)
     else:

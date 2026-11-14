@@ -20,9 +20,11 @@ class Phoenix14T(torch.utils.data.Dataset):
         vid_root: str,
         feat_root: str,
         mae_feat_root: str,
+        mediapipe_feat_root: str,
         mode: str = 'dev',
         spatial: bool = False,
         spatiotemporal: bool = False,
+        mediapipe_feat: bool = False,
         spatial_postfix: str = '',
         spatiotemporal_postfix: Union[str, List[str]] = ''
     ):
@@ -34,9 +36,11 @@ class Phoenix14T(torch.utils.data.Dataset):
             vid_root: Root directory for video files
             feat_root: Root directory for spatial features
             mae_feat_root: Root directory for spatiotemporal features
+            mediapipe_feat_root: Root directory for Mediapipe features
             mode: Dataset split ('train', 'dev', or 'test')
             spatial: Whether to load spatial features
             spatiotemporal: Whether to load spatiotemporal features
+            mediapipe_feat: Whether to load Mediapipe features as spatiotemporal features
             spatial_postfix: Filename postfix for spatial features
             spatiotemporal_postfix: Filename postfix for spatiotemporal features,
                                     can be a string or a list of strings
@@ -47,9 +51,11 @@ class Phoenix14T(torch.utils.data.Dataset):
         self.vid_root = Path(vid_root)
         self.feat_root = Path(feat_root)
         self.mae_feat_root = Path(mae_feat_root)
+        self.mediapipe_feat_root = Path(mediapipe_feat_root)
         self.mode = mode
         self.spatial = spatial
         self.spatiotemporal = spatiotemporal
+        self.mediapipe_feat = mediapipe_feat
         self.spatial_postfix = spatial_postfix
         self.spatiotemporal_postfix = spatiotemporal_postfix
         
@@ -66,7 +72,11 @@ class Phoenix14T(torch.utils.data.Dataset):
         
         # Set up directory paths
         self.spatial_dir = self.feat_root / self.mode
-        self.spatiotemporal_dir = self.mae_feat_root / self.mode
+        if self.mediapipe_feat:
+            self.spatiotemporal_dir = self.mediapipe_feat_root / self.mode
+        else:
+            self.spatiotemporal_dir = self.mae_feat_root / self.mode
+
         
         # Validate that key directories exist
         self._validate_directories()
@@ -132,7 +142,6 @@ class Phoenix14T(torch.utils.data.Dataset):
         
         Args:
             index: The index of the item to retrieve
-            
         Returns:
             Dictionary containing all features and metadata for the item
         """
