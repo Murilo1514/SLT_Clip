@@ -167,16 +167,21 @@ class LandmarkTransformerProjector(nn.Module):
 
 def build_landmarks_projector(
     mm_hidden_size=26160,
-    hidden_size=768
+    hidden_size = 768,
+    linear = False
 ):
-    return LandmarkTransformerProjector(
-        mm_hidden_size=mm_hidden_size,
-        hidden_size=hidden_size
+    if not linear:
+        return LandmarkTransformerProjector(
+            mm_hidden_size=mm_hidden_size,
+            hidden_size=hidden_size
+        )
+
+    seq = nn.Sequential(
+        nn.LayerNorm(mm_hidden_size),
+        nn.Linear(mm_hidden_size, hidden_size)
     )
-
-
-
     
+    return seq
 
 
 # https://github1s.com/facebookresearch/jepa/blob/main/src/models/utils/modules.py

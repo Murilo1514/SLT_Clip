@@ -18,7 +18,7 @@ from spamo.mm_projector import build_vision_projector, build_landmarks_projector
 from utils.evaluate import evaluate_results
 from spamo.clip_loss import clip_loss
 from spamo.asb import AbstractSLT
-from transformers import get_cosine_schedule_with_warmup
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -162,12 +162,40 @@ class FlanT5SLT(AbstractSLT):
         )
 
         # Load the vision projectors
-        self.spatio_proj = build_vision_projector('linear', self.input_size, self.inter_hidden)
+        # self.spatio_proj = build_vision_projector('linear', self.input_size, self.inter_hidden)
+        # if self.mediapipe_feat:
+        #     # self.spatio_proj = build_landmarks_projector(self.input_size, self.inter_hidden, linear=True)
+        #     self.spatio_proj = nn.Sequential(
+        #         nn.LayerNorm(self.input_size),
+        #         nn.Linear(self.input_size, self.inter_hidden),
+        #         nn.GELU(),
+        #         nn.Dropout(0.1),
+        #         nn.Linear(self.inter_hidden, self.inter_hidden),
+        #     )
+        #     self.spatiotemp_proj = build_landmarks_projector(26160, self.inter_hidden, linear=True) 
+        # else:
+        #     self.spatiotemp_proj = build_vision_projector('linear', 1024, self.inter_hidden)
+       
+       
         if self.mediapipe_feat:
-            # self.spatiotemp_proj = build_vision_projector('linear', 26160, self.inter_hidden)
-            self.spatiotemp_proj = build_landmarks_projector(26160, self.inter_hidden) 
+            # self.spatio_proj = build_landmarks_projector(self.input_size, self.inter_hidden, linear=True)
+            self.spatio_proj = nn.Sequential(
+                nn.LayerNorm(self.input_size),
+                nn.Linear(self.input_size, self.inter_hidden),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                nn.Linear(self.inter_hidden, self.inter_hidden),
+            )
         else:
-            self.spatiotemp_proj = build_vision_projector('linear', 1024, self.inter_hidden)
+            self.spatio_proj = build_vision_projector('linear', self.input_size, self.inter_hidden)
+        if self.fusion_mode in ['joint', 'spatiotemporal']:
+            if self.mediapipe_feat:
+                self.spatiotemp_proj = build_landmarks_projector(26160, self.inter_hidden, linear=True)
+            else:
+                self.spatiotemp_proj = build_vision_projector('linear', 1024, self.inter_hidden)
+            
+            
+       
         self.fusion_proj = build_vision_projector('mlp2x_gelu', self.inter_hidden, self.t5_model.config.hidden_size)
         
         # Load the temporal encoder
@@ -545,8 +573,8 @@ class FlanT5SLT(AbstractSLT):
                 attention_mask=input_masks,
                 num_beams=5,
                 max_length=self.max_txt_len,
-                top_p=0.9,
-                do_sample=True,
+                # top_p=0.9,
+                do_sample= False #True,
             )
             
             # Decode generated outputs and references
@@ -644,11 +672,15 @@ class FlanT5SLT(AbstractSLT):
         
         warmup_steps = int(total_steps * 0.1)
 
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer=optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=total_steps,
-        )
+        # scheduler = get_cosine_schedule_with_warmup(
+        #     optimizer=optimizer,
+        #     num_warmup_steps=warmup_steps,
+        #     num_training_steps=total_steps,
+        # )
+
+        warmup = LinearLR(optimizer, start_factor=0.01, total_iters=warmup_steps)
+        cosine = CosineAnnealingLR(optimizer, T_max=max(1, total_steps - warmup_steps), eta_min=self.lr * 0.1)
+        scheduler = SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[warmup_steps])
 
         return {
             "optimizer": optimizer,

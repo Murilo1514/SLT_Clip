@@ -2,12 +2,12 @@ model:
   target: spamo.t5_slt.FlanT5SLT
   
   params:     
-    lr: 6.0e-4
+    lr: 1.5e-4 # 6.0e-4
     monitor: val/bleu4
-    model_name: google/flan-t5-large # google/flan-t5-xl
+    model_name: google/flan-t5-xl # google/flan-t5-large
     cache_dir: .cache/huggingface/hub
     inter_hidden: 768
-    input_size: 2048
+    input_size: 1635 # 2048
     beam_size: 5
     max_frame_len: 512
     max_txt_len: 64
@@ -17,11 +17,11 @@ model:
     lora_r: 16
     lora_alpha: 32
     lora_dropout: 0.1
-    fusion_mode: spatiotemporal # joint # 
-    warm_up_steps: 1000 # 0
+    fusion_mode: spatial # joint # spatiotemporal  
+    warm_up_steps: 1500 # 0
     cross_modal_align: true
     combined_loss: true
-    alpha: 1.0
+    alpha: 0.1 # 1.0
     use_in_context: true
     num_in_context: 3
     mediapipe_feat: true
@@ -34,8 +34,8 @@ lightning:
   trainer:
     accumulate_grad_batches: 2
     accelerator: gpu
-    devices: 2
-    max_epochs: 50
+    devices: 3
+    max_epochs: 70
     gradient_clip_val: 1.0
     check_val_every_n_epoch: 2
     precision: bf16
@@ -43,7 +43,7 @@ lightning:
 data:
   target: dataset.datamodule.DataModuleFromConfig
   params:
-    batch_size: 8 # Estorou 40gb de memória em batch_size: 8
+    batch_size: 12 # Estorou 40gb de memória em batch_size: 8
     num_workers: 4
   
     train:
@@ -51,12 +51,12 @@ data:
       params:
         anno_root: ./preprocess/Phoenix14T
         vid_root: ./dataset/Phoenix14T
-        feat_root: ./features/spa_feat_p14t/
+        feat_root: ./datasets_features/mp_frames_feat_Phoenix14T/ # ./features/spa_feat_p14t/
         mae_feat_root: ./features/mo_feat_p14t/
         mediapipe_feat_root: ./datasets_features/mediapipe_feat_Phoenix14T/
         mode: train
-        spatial: false # true #
-        spatiotemporal: true
+        spatial: true # false # 
+        spatiotemporal: false # true
         mediapipe_feat: true
         # spatial_postfix: _s2wrapping
         # spatiotemporal_postfix: _overlap-8-
@@ -67,12 +67,12 @@ data:
       params:
         anno_root: ./preprocess/Phoenix14T
         vid_root: ./dataset/Phoenix14T
-        feat_root: ./features/spa_feat_p14t/
+        feat_root: ./datasets_features/mp_frames_feat_Phoenix14T/ # ./features/spa_feat_p14t/
         mae_feat_root: ./features/mo_feat_p14t/
         mediapipe_feat_root: ./datasets_features/mediapipe_feat_Phoenix14T/
         mode: test
-        spatial: false # true #
-        spatiotemporal: true
+        spatial: true # false #
+        spatiotemporal: false # true
         mediapipe_feat: true
         # spatial_postfix: _s2wrapping
         # spatiotemporal_postfix: _overlap-8-pretrained
@@ -83,12 +83,12 @@ data:
       params:
         anno_root: ./preprocess/Phoenix14T
         vid_root: ./dataset/Phoenix14T
-        feat_root: ./features/spa_feat_p14t/
+        feat_root: ./datasets_features/mp_frames_feat_Phoenix14T/ # ./features/spa_feat_p14t/
         mae_feat_root: ./features/mo_feat_p14t/
         mediapipe_feat_root: ./datasets_features/mediapipe_feat_Phoenix14T/
         mode: test
-        spatial: false # true #
-        spatiotemporal: true
+        spatial: true # false # 
+        spatiotemporal: false # true
         mediapipe_feat: true
         # spatial_postfix: _s2wrapping
         # spatiotemporal_postfix: _overlap-8-pretrained
